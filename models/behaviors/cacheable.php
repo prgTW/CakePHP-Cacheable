@@ -120,14 +120,23 @@ class CacheableBehavior extends ModelBehavior {
 		}
 	}
 	
-	public function deleteCache(&$model, $key = null) {
+	public function deleteCache(&$model, $key = null, $deleteForAssociated = true) {
 		App::import('Libs', 'ClearCache.ClearCache');
 		$ClearCache = new ClearCache();
 		
 		if ($key) {
 			return Cache::delete($key, 'cacheable' . $model->alias);
 		} else {
-			return $ClearCache->files('cacheable' . DS . $model->alias);
+			$results = $ClearCache->files('cacheable' . DS . $model->alias);
+			if ($deleteForAssociated) {
+				$associated = array_keys($model->getAssociated());
+				if (count($associated)) {
+					foreach ($associated as $className) {
+						$results = array_merge_recursive($results, $ClearCache->files('cacheable' . DS . $className));
+					}
+				}
+			}
+			return $results;
 		}
 	}
 	
