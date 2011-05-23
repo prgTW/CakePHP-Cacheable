@@ -1,20 +1,21 @@
 <?php
+
 /**
  * Cacheable Model Behavior
- * 
+ *
  * Stores model queries in cache
  *
  * @package Cacheable
  * @author Dean Sofer
  * @version $Id$
- * @copyright 
+ * @copyright
  * @dependencies Clear_Cache Plugin by Ceeram https://github.com/ceeram/clear_cache
- **/
+ */
 class CacheableBehavior extends ModelBehavior {
 
 	/**
 	 * Contains configuration settings for use with individual model objects.
-	 * Individual model settings should be stored as an associative array, 
+	 * Individual model settings should be stored as an associative array,
 	 * keyed off of the model name.
 	 *
 	 * @var array
@@ -37,16 +38,16 @@ class CacheableBehavior extends ModelBehavior {
 			'duration' => '+1 hour',
 		);
 		$this->_settings[$model->alias] = array_merge($defaults, $config);
-		
+
 		$this->_configure($model, $this->_settings[$model->alias]['duration']);
 	}
-	
+
 	/**
 	 * Sets up the cache configurations for cacheable
 	 *
-	 * @param string $model 
-	 * @param string $type 
-	 * @param string $duration 
+	 * @param string $model
+	 * @param string $type
+	 * @param string $duration
 	 * @return void
 	 * @author Dean
 	 */
@@ -75,10 +76,10 @@ class CacheableBehavior extends ModelBehavior {
 	 * and the results are stored to a unique key for the query. Also works with
 	 * complex operations by using Model methods called cache<QueryName>($options)
 	 *
-	 * @param string $model 
-	 * @param string $type 
-	 * @param string $query 
-	 * @param string $options 
+	 * @param string $model
+	 * @param string $type
+	 * @param string $query
+	 * @param string $options
 	 * @return void
 	 * @author Dean Sofer
 	 */
@@ -87,13 +88,13 @@ class CacheableBehavior extends ModelBehavior {
 			'duration' => null,
 			'update' => false,
 		), $options);
-		
+
 		$key = $this->generateCacheKey($model, $type, $queryOptions);
-		
+
 		if ($options['update']) {
 			$this->deleteCache($model, $key);
 		}
-		
+
 		$data = $this->getCache($model, $key);
 		if ($data === false) {
 			$data = $model->find($type, $queryOptions);
@@ -101,12 +102,12 @@ class CacheableBehavior extends ModelBehavior {
 		}
 		return $data;
 	}
-	
+
 	/**
 	 * Generates a unique key based on the find type and query parameters
 	 *
-	 * @param string $type 
-	 * @param string $queryOptions 
+	 * @param string $type
+	 * @param string $queryOptions
 	 * @return void
 	 * @author Dean
 	 */
@@ -119,39 +120,43 @@ class CacheableBehavior extends ModelBehavior {
 			return $type . '_' . Security::hash(serialize($queryOptions));
 		}
 	}
-	
+
 	public function deleteCache(&$model, $key = null, $deleteForAssociated = true) {
-		App::import('Libs', 'ClearCache.ClearCache');
+		App::import('Lib', 'ClearCache');
 		$ClearCache = new ClearCache();
-		
+
 		if ($key) {
 			return Cache::delete($key, 'cacheable' . $model->alias);
 		} else {
-			$results = $ClearCache->files('cacheable' . DS . $model->alias);
+			$results = array();
 			if ($deleteForAssociated) {
 				$associated = array_keys($model->getAssociated());
+				if (method_exists($model, 'beforeClearCache')) {
+					$associated = $model->beforeClearCache($associated);
+				}
 				if (count($associated)) {
 					foreach ($associated as $className) {
 						$results = array_merge_recursive($results, $ClearCache->files('cacheable' . DS . $className));
 					}
 				}
 			}
+			$results = array_merge_recursive($results, $ClearCache->files('cacheable' . DS . $model->alias));
 			return $results;
 		}
 	}
-	
+
 	public function getCache(&$model, $key) {
 		return Cache::read($key, 'cacheable' . $model->alias);
 	}
-	
+
 	public function setCache(&$model, $key, $data) {
 		return Cache::write($key, $data, 'cacheable' . $model->alias);
 	}
-	
+
 	public function afterSave(&$model, $created) {
 		$this->deleteCache($model);
 	}
-	
+
 	public function afterDelete(&$model) {
 		$this->deleteCache($model);
 	}
